@@ -35,3 +35,24 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     num_packets_received += 1
                     data_from_server = s2.recv(1024) # Receive reply from server
                     conn.sendall(data_from_server) # Forward reply to client
+
+class Delayer():
+    def __init__(self) -> None:
+        self.time_of_last_empty = 0
+        self.queue = []
+        self.delaymodel = dQGenerativeModel()
+        
+    def ingress(self, packet, timestamp):
+        if self.queue == []:
+            self.time_of_last_empty = timestamp
+            self.queue.append((packet, timestamp + self.delaymodel.get_delay(timestamp)))
+        else:
+            time_since_last_empty = timestamp - self.time_of_last_empty
+            self.queue.append((packet, time_since_last_empty + self.delaymodel.get_delay(timestamp)))
+
+    def egress(self, conn, current_time):
+        if self.queue != []:
+            packet, scheduled_for = self.queue[0]
+            if current_time >= scheduled_for:
+                conn.sendall(packet)
+                self.queue = self.queue[1:]
